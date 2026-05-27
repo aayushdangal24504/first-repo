@@ -1,0 +1,282 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --surface: 247 242 233;
+  --elevated: 255 251 244;
+  --ink: 31 36 33;
+  --muted: 103 111 104;
+  --line: 219 210 197;
+  --accent: 87 121 104;
+  --glow: 231 177 108;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --surface: 17 19 18;
+  --elevated: 30 34 31;
+  --ink: 243 238 229;
+  --muted: 170 176 166;
+  --line: 69 75 69;
+  --accent: 148 187 166;
+  --glow: 233 182 101;
+}
+
+[data-accent='clay'] { --accent: 183 104 82; --glow: 237 175 132; }
+[data-accent='ocean'] { --accent: 84 139 173; --glow: 126 202 220; }
+[data-accent='rose'] { --accent: 188 103 126; --glow: 236 169 185; }
+[data-accent='amber'] { --accent: 196 137 56; --glow: 239 197 112; }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-width: 1080px;
+  min-height: 720px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgb(var(--glow) / 0.22), transparent 34rem),
+    radial-gradient(circle at bottom right, rgb(var(--accent) / 0.18), transparent 34rem),
+    rgb(var(--surface));
+  color: rgb(var(--ink));
+  font-family: 'Avenir Next', 'Helvetica Neue', ui-sans-serif, system-ui;
+}
+
+button, input, textarea { font: inherit; }
+
+.drag-region { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
+
+.glass-panel {
+  border: 1px solid rgb(var(--line) / 0.72);
+  background: linear-gradient(145deg, rgb(var(--elevated) / 0.78), rgb(var(--elevated) / 0.44));
+  box-shadow: 0 24px 70px rgb(15 23 42 / 0.14);
+  backdrop-filter: blur(22px);
+}
+
+.ProseMirror {
+  min-height: 520px;
+}
+
+.ProseMirror p {
+  margin: 0.65rem 0;
+}
+
+.ProseMirror h2 {
+  margin: 1.4rem 0 0.8rem;
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin: 0.8rem 0;
+  padding-left: 1.5rem;
+}
+
+.ProseMirror code {
+  border-radius: 0.5rem;
+  background: rgb(var(--surface) / 0.8);
+  padding: 0.15rem 0.35rem;
+  font-family: 'SF Mono', Menlo, ui-monospace;
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  border-radius: 1rem;
+  background: rgb(var(--ink) / 0.08);
+  padding: 1rem;
+  overflow: auto;
+}
+
+.ProseMirror mark {
+  border-radius: 0.4rem;
+  background: rgb(var(--glow) / 0.45);
+  padding: 0.05rem 0.2rem;
+}
+
+.ProseMirror table,
+.ProseMirror .avyukta-table {
+  position: relative;
+  width: 520px;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  overflow: auto;
+  border-radius: 1rem;
+  border: 2px solid rgb(var(--accent) / 0.7);
+  background:
+    linear-gradient(rgb(var(--accent) / 0.08), rgb(var(--accent) / 0.08)),
+    rgb(var(--elevated) / 0.86);
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.1);
+}
+
+.ProseMirror table::before,
+.ProseMirror .avyukta-table::before {
+  content: 'drag';
+  position: absolute;
+  left: 0.65rem;
+  top: 0.45rem;
+  z-index: 5;
+  border-radius: 999px;
+  background: rgb(var(--ink) / 0.72);
+  color: rgb(var(--surface));
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.45rem;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ProseMirror table::after,
+.ProseMirror .avyukta-table::after {
+  content: 'resize all';
+  position: absolute;
+  right: 0.45rem;
+  top: 0.45rem;
+  z-index: 5;
+  border-radius: 999px;
+  background: rgb(var(--accent));
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.45rem;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ProseMirror table tbody,
+.ProseMirror .avyukta-table tbody {
+  position: relative;
+}
+
+.ProseMirror table tr,
+.ProseMirror .avyukta-table tr {
+  position: relative;
+}
+
+.ProseMirror table tr::after,
+.ProseMirror .avyukta-table tr::after {
+  content: 'row';
+  position: absolute;
+  right: -2.15rem;
+  top: 50%;
+  z-index: 6;
+  width: 1.85rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgb(var(--accent) / 0.92);
+  color: white;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 0.36rem 0.2rem;
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ProseMirror table:hover tr::after,
+.ProseMirror .avyukta-table:hover tr::after {
+  opacity: 0.85;
+}
+
+.ProseMirror table:hover::before,
+.ProseMirror table:hover::after,
+.ProseMirror .avyukta-table:hover::before,
+.ProseMirror .avyukta-table:hover::after {
+  opacity: 1;
+}
+
+.ProseMirror table td,
+.ProseMirror table th,
+.ProseMirror .avyukta-table td,
+.ProseMirror .avyukta-table th {
+  position: relative;
+  min-width: 72px;
+  height: 58px;
+  min-height: 58px;
+  border: 2px solid rgb(var(--accent) / 0.42);
+  background:
+    linear-gradient(135deg, rgb(var(--elevated) / 0.86), rgb(var(--surface) / 0.72));
+  padding: 0.7rem;
+  vertical-align: top;
+  resize: both;
+  overflow: auto;
+}
+
+.grid-can-move .ProseMirror table:hover,
+.grid-can-move .ProseMirror .avyukta-table:hover {
+  cursor: grab;
+}
+
+.grid-can-resize .ProseMirror table:hover,
+.grid-can-resize .ProseMirror .avyukta-table:hover {
+  cursor: nwse-resize;
+}
+
+.grid-can-resize-row .ProseMirror table:hover,
+.grid-can-resize-row .ProseMirror .avyukta-table:hover {
+  cursor: ns-resize;
+}
+
+.grid-can-resize-column .ProseMirror table:hover,
+.grid-can-resize-column .ProseMirror .avyukta-table:hover {
+  cursor: ew-resize;
+}
+
+.ProseMirror table td p,
+.ProseMirror table th p,
+.ProseMirror .avyukta-table td p,
+.ProseMirror .avyukta-table th p {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.ProseMirror table td:empty::before,
+.ProseMirror table th:empty::before,
+.ProseMirror .avyukta-table td:empty::before,
+.ProseMirror .avyukta-table th:empty::before {
+  content: ' ';
+  display: block;
+  min-height: 1.5rem;
+}
+
+.ProseMirror table th,
+.ProseMirror .avyukta-table th {
+  background: rgb(var(--accent) / 0.2);
+  font-weight: 800;
+}
+
+.ProseMirror .selectedCell::after {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: '';
+  background: rgb(var(--accent) / 0.18);
+}
+
+.ProseMirror .column-resize-handle {
+  pointer-events: none;
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  top: 0;
+  width: 4px;
+  background: rgb(var(--accent));
+}
+
+.ProseMirror.resize-cursor {
+  cursor: ew-resize;
+}
