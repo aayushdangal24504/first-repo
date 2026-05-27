@@ -58,3 +58,40 @@ Thumbs.db
 coverage/
 .cache/
 .eslintcache
+
+# Personal/scratch files that should never be pushed
+anmoltest
+*personal*
+*private*
+*secret*
+*scratch*
+*local-only*
+*.local
+*.bak
+
+# Local Ayvukta runtime/user data if copied into the repo by mistake
+avyukta.sqlite
+avyukta.sqlite-*
+*.sqlite3
+*.sqlite3-*
+user-data/
+userdata/
+app-data/
+appdata/
+local-data/
+localdata/
+Application Support/
+Library/Application Support/
+photos/
+images/private/
+attachments/
+uploads/
+
+# Auth/session/reset-code material
+sessions.json
+session.json
+tokens.json
+reset-codes.json
+password-reset-codes.json
+credentials.json
+secrets.json
