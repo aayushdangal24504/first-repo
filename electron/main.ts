@@ -15,6 +15,7 @@ import { registerNoteIpc } from './ipc/notes';
 import { registerReminderIpc } from './ipc/reminders';
 import { registerTaskIpc } from './ipc/tasks';
 import { registerTravelIpc } from './ipc/travel';
+import { registerTrashIpc } from './ipc/trash';
 import { ensureLocalFolders } from './services/local-paths';
 import { MediaManager } from './services/media-manager';
 import { ReminderScheduler } from './services/reminder-scheduler';
@@ -59,14 +60,15 @@ app.whenReady().then(() => {
   registerBackupIpc(ipcMain, database, paths, authService);
   registerCalendarIpc(ipcMain, database, authService);
   registerDashboardIpc(ipcMain, database, authService);
-  registerJournalIpc(ipcMain, database, mediaManager, paths.mediaPath, authService);
+  const trashService = registerTrashIpc(ipcMain, database, authService);
+  registerJournalIpc(ipcMain, database, mediaManager, paths.mediaPath, authService, trashService);
   registerMediaIpc(ipcMain, mediaManager, authService);
   registerMemoryIpc(ipcMain, database, authService);
   registerMoodIpc(ipcMain, database, authService);
-  registerNoteIpc(ipcMain, database, authService);
-  registerReminderIpc(ipcMain, database, reminderScheduler, authService);
-  registerTaskIpc(ipcMain, database, authService);
-  registerTravelIpc(ipcMain, database, authService);
+  registerNoteIpc(ipcMain, database, authService, trashService);
+  registerReminderIpc(ipcMain, database, reminderScheduler, authService, trashService);
+  registerTaskIpc(ipcMain, database, authService, trashService);
+  registerTravelIpc(ipcMain, database, authService, trashService);
   reminderScheduler.start();
 
   createWindow();

@@ -29,6 +29,7 @@ import type {
   Reminder,
   RegisterInput,
   SnoozeReminderInput,
+  TrashItem,
   Trip,
   TripDay,
   Task,
@@ -122,6 +123,14 @@ declare global {
       };
       backups: {
         exportJson: () => Promise<BackupResult>;
+      };
+      trash: {
+        list: () => Promise<TrashItem[]>;
+        add: (entityType: string, entityId: string, entityData: unknown, title?: string | null) => Promise<TrashItem>;
+        restore: (trashId: string) => Promise<{ ok: true; entityType: string; entityId: string; data: unknown }>;
+        delete: (trashId: string) => Promise<{ ok: true }>;
+        empty: () => Promise<{ ok: true }>;
+        setRetentionDays: (days: number) => Promise<{ ok: true; days: number }>;
       };
     };
   }

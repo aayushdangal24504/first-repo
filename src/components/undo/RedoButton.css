@@ -1,0 +1,28 @@
+.redo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.redo-icon {
+  font-size: 1.1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.redo-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.redo-button:not(:disabled):hover {
+  transform: translateX(2px);
+}
+
+@media (max-width: 640px) {
+  .redo-button {
+    gap: 0.25rem;
+  }
+}

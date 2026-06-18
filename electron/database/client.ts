@@ -44,6 +44,11 @@ const runLightweightMigrations = (db: AppDatabase): void => {
   ensureColumn(db, 'reminders', 'category', 'TEXT');
   ensureColumn(db, 'reminders', 'priority', `TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low','normal','high'))`);
   ensureColumn(db, 'reminders', 'last_notified_at', 'TEXT');
+  ensureColumn(db, 'reminders', 'custom_recurrence_pattern', 'TEXT');
+  ensureColumn(db, 'reminders', 'mode', `TEXT NOT NULL DEFAULT 'standard' CHECK(mode IN ('standard','event'))`);
+  ensureColumn(db, 'reminders', 'event_kind', 'TEXT');
+  ensureColumn(db, 'reminders', 'date_of_birth', 'TEXT');
+  ensureColumn(db, 'reminders', 'notify_like_alarm', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'memories', 'memory_date', 'TEXT');
   ensureColumn(db, 'memories', 'year', 'INTEGER');
   ensureColumn(db, 'memories', 'category', 'TEXT');
@@ -51,6 +56,14 @@ const runLightweightMigrations = (db: AppDatabase): void => {
   ensureColumn(db, 'memories', 'emotional_tags', `TEXT NOT NULL DEFAULT '[]'`);
   ensureColumn(db, 'memories', 'cover_media_id', 'TEXT');
   ensureColumn(db, 'memories', 'is_favorite', 'INTEGER NOT NULL DEFAULT 0');
+  
+  // Trip day diary prompts
+  ensureColumn(db, 'trip_days', 'activities_text', 'TEXT');
+  ensureColumn(db, 'trip_days', 'plans_text', 'TEXT');
+  ensureColumn(db, 'trip_days', 'places_visited', `TEXT NOT NULL DEFAULT '[]'`);
+  ensureColumn(db, 'trip_days', 'food_tried', `TEXT NOT NULL DEFAULT '[]'`);
+  ensureColumn(db, 'trip_days', 'highlights', 'TEXT');
+  ensureColumn(db, 'trip_days', 'notes_text', 'TEXT');
 };
 
 export const createDatabase = (databasePath: string): AppDatabase => {

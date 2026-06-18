@@ -183,6 +183,32 @@ export const JournalView = () => {
                 <Button onClick={() => void doExport('docx')} className="gap-2"><Download className="h-4 w-4" />DOCX</Button>
               </div>
             </div>
+
+            {/* Page Navigation Indicators */}
+            {activeBook && activeBook.entries.length > 0 && (
+              <div className="flex items-center justify-center gap-2 rounded-2xl bg-elevated/30 p-4 overflow-x-auto">
+                <span className="shrink-0 text-sm font-bold text-muted">
+                  Page {selectedPageIndex + 1} of {activeBook.entries.length}:
+                </span>
+                <div className="flex gap-1.5 px-2">
+                  {activeBook.entries.map((_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => setSelectedPageIndex(index)}
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full transition-all',
+                        index === selectedPageIndex
+                          ? 'bg-accent w-8'
+                          : 'bg-line/50 hover:bg-line'
+                      )}
+                      title={`Go to page ${index + 1}`}
+                      aria-label={`Page ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             {exportPath && <p className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent">Saved export to: <span className="font-mono">{exportPath}</span></p>}
 
             <div className="grid grid-cols-[minmax(860px,1fr)_330px] gap-6">

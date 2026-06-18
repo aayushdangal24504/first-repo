@@ -5,15 +5,13 @@ import { Sidebar } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { BackupsView } from '@/features/backups/BackupsView';
 import { CalendarView } from '@/features/calendar/CalendarView';
 import { JournalView } from '@/features/journal/JournalView';
-import { MediaView } from '@/features/media/MediaView';
 import { MemoryVaultView } from '@/features/memories/MemoryVaultView';
 import { NotesView } from '@/features/notes/NotesView';
 import { RemindersView } from '@/features/reminders/RemindersView';
 import { TasksView } from '@/features/tasks/TasksView';
+import { TrashView } from '@/features/trash/TrashView';
 import { TravelView } from '@/features/travel/TravelView';
 import { primaryNavItems, systemNavItems } from '@/lib/navigation';
 import { useUiStore } from '@/store/ui-store';
@@ -93,8 +91,7 @@ export const AppShell = () => {
   const showJournal = activeView === 'journal';
   const showTasks = activeView === 'tasks';
   const showNotes = activeView === 'notes';
-  const showMedia = activeView === 'media';
-  const showBackups = activeView === 'backups';
+  const showTrash = activeView === 'trash';
   const showCalendar = activeView === 'calendar';
   const showTravel = activeView === 'travel';
   const showMemories = activeView === 'memories';
@@ -131,28 +128,18 @@ export const AppShell = () => {
               <NotesView key="notes" />
             ) : showJournal ? (
               <JournalView key="journal" />
-            ) : showMedia ? (
-              <MediaView key="media" />
             ) : showCalendar ? (
               <CalendarView key="calendar" />
             ) : showTravel ? (
               <TravelView key="travel" />
             ) : showMemories ? (
               <MemoryVaultView key="memories" />
-            ) : showBackups ? (
-              <BackupsView key="backups" />
+            ) : showTrash ? (
+              <TrashView key="trash" />
             ) : showReminders ? (
               <RemindersView key="reminders" />
             ) : (
-              <motion.div key={activeView} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
-                <Card className="min-h-[520px] p-8">
-                  <p className="text-sm font-bold uppercase tracking-[0.26em] text-accent">Coming in Phase {navItem?.phase}</p>
-                  <h2 className="mt-4 font-display text-5xl font-bold">{navItem?.label} is mapped into the architecture.</h2>
-                  <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
-                    The navigation, database tables, local storage plan, and UI shell are ready. We will build this feature incrementally with real data flows instead of stuffing everything into one giant component.
-                  </p>
-                </Card>
-              </motion.div>
+              <Dashboard key="dashboard-fallback" />
             )}
           </AnimatePresence>
         </div>

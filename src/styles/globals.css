@@ -49,6 +49,43 @@ button, input, textarea { font: inherit; }
 .drag-region { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
 
+/* Text wrapping around floating elements */
+.prose-content {
+  position: relative;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.prose-content > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure editor content flows around absolute positioned elements */
+.prose-content p, 
+.prose-content li, 
+.prose-content blockquote {
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Grid-like layout for unified canvas */
+.avyukta-sheet {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Support for floating blocks to not block text completely */
+.absolute.rounded-2xl {
+  pointer-events: auto;
+}
+
+/* Ensure text can flow naturally */
+div[data-editable="false"] {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
 .glass-panel {
   border: 1px solid rgb(var(--line) / 0.72);
   background: linear-gradient(145deg, rgb(var(--elevated) / 0.78), rgb(var(--elevated) / 0.44));
@@ -279,4 +316,20 @@ button, input, textarea { font: inherit; }
 
 .ProseMirror.resize-cursor {
   cursor: ew-resize;
+}
+
+.ProseMirror .avyukta-note-image {
+  display: block;
+  max-width: min(100%, 720px);
+  min-width: 160px;
+  height: auto;
+  margin: 1rem 0;
+  border-radius: 1rem;
+  resize: both;
+  overflow: auto;
+}
+
+.ProseMirror .ProseMirror-selectednode.avyukta-note-image {
+  outline: 3px solid rgb(var(--accent) / 0.55);
+  outline-offset: 4px;
 }

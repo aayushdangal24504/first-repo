@@ -209,18 +209,6 @@ const addSheetRow = (sheet: SheetData): SheetData => ({
 });
 
 
-const removeSheetRow = (sheet: SheetData): SheetData => {
-  if (sheet.cells.length <= 1) return sheet;
-  const removedHeight = sheet.rowHeights[sheet.rowHeights.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.slice(0, -1),
-    rowHeights: sheet.rowHeights.slice(0, -1),
-    height: sheet.height - removedHeight,
-  };
-};
-
-
 const addSheetColumn = (sheet: SheetData): SheetData => ({
 
   ...sheet,
@@ -232,18 +220,6 @@ const addSheetColumn = (sheet: SheetData): SheetData => ({
   width: sheet.width + 110
 
 });
-
-
-const removeSheetColumn = (sheet: SheetData): SheetData => {
-  if (sheet.columnWidths.length <= 1) return sheet;
-  const removedWidth = sheet.columnWidths[sheet.columnWidths.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.map((row) => row.slice(0, -1)),
-    columnWidths: sheet.columnWidths.slice(0, -1),
-    width: sheet.width - removedWidth,
-  };
-};
 
 
 const columnName = (index: number) => {
@@ -915,57 +891,33 @@ export const NotesView = () => {
 
     const maxZ = Math.max(1, ...blocksRef.current.map((block) => block.zIndex));
 
-    // Load each image to get its real natural dimensions
-    const newBlocks = await Promise.all(images.map((image, index) => {
-      const src = image.dataUrl ?? image.fileUrl ?? '';
-      return new Promise<JournalPageBlock>((resolve) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const naturalW = img.naturalWidth || 400;
-          const naturalH = img.naturalHeight || 300;
-          const maxDim = 420;
-          const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
-          resolve({
-            id: crypto.randomUUID(),
-            type: 'image' as const,
-            mediaId: image.id,
-            image: { ...image, sortOrder: index, caption: null },
-            x: 80 + index * 34,
-            y: 82 + index * 28,
-            width: Math.round(naturalW * scale),
-            height: Math.round(naturalH * scale),
-            rotation: 0,
-            zIndex: maxZ + index + 1,
-            aspectRatio: naturalW / naturalH,
-            crop: null,
-          } as any);
-        };
-        img.onerror = () => {
-          // Fallback if image fails to load
-          const naturalW = image.width ?? 400;
-          const naturalH = image.height ?? 300;
-          const maxDim = 420;
-          const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
-          resolve({
-            id: crypto.randomUUID(),
-            type: 'image' as const,
-            mediaId: image.id,
-            image: { ...image, sortOrder: index, caption: null },
-            x: 80 + index * 34,
-            y: 82 + index * 28,
-            width: Math.round(naturalW * scale),
-            height: Math.round(naturalH * scale),
-            rotation: 0,
-            zIndex: maxZ + index + 1,
-            aspectRatio: naturalW / naturalH,
-            crop: null,
-          } as any);
-        };
-        img.src = src;
-      });
-    }));
+    const nextBlocks: JournalPageBlock[] = [
 
-    const nextBlocks: JournalPageBlock[] = [...blocksRef.current, ...newBlocks];
+      ...blocksRef.current,
+
+      ...images.map((image, index) => {
+        // Determine natural aspect-ratio-aware default size
+        const naturalW = image.width ?? 400;
+        const naturalH = image.height ?? 300;
+        const maxDim = 360;
+        const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
+        return {
+          id: crypto.randomUUID(),
+          type: 'image' as const,
+          mediaId: image.id,
+          image: { ...image, sortOrder: index, caption: null },
+          x: 80 + index * 34,
+          y: 82 + index * 28,
+          width: Math.round(naturalW * scale),
+          height: Math.round(naturalH * scale),
+          rotation: 0,
+          zIndex: maxZ + index + 1,
+          aspectRatio: naturalW / naturalH,
+          crop: null as CropData | null,
+        };
+      })
+
+    ];
 
     setBlocks(nextBlocks);
 
@@ -1019,49 +971,23 @@ export const NotesView = () => {
 
   };
 
-  const pendingDragRef = useRef<{ id: string; pointerId: number; target: HTMLElement; dx: number; dy: number; startX: number; startY: number } | null>(null);
-
   const startBlockDrag = (event: ReactPointerEvent, block: JournalPageBlock) => {
 
     setSelectedBlockId(block.id);
-    setSelectedSheetIndex(null);
 
     if ((event.target as HTMLElement).closest('[data-editable="true"],button,input')) return;
 
-    const canvas = blocksCanvasRef.current;
-    const rect = canvas?.getBoundingClientRect();
+    const rect = blocksCanvasRef.current?.getBoundingClientRect();
 
-    if (!rect || !canvas) return;
+    if (!rect) return;
 
-    // Don't setPointerCapture immediately — wait for actual movement so scroll still works
-    const dx = event.clientX - rect.left + canvas.scrollLeft - block.x;
-    const dy = event.clientY - rect.top + canvas.scrollTop - block.y;
-    pendingDragRef.current = {
-      id: block.id,
-      pointerId: event.pointerId,
-      target: event.currentTarget as HTMLElement,
-      dx,
-      dy,
-      startX: event.clientX,
-      startY: event.clientY,
-    };
+    setDragging({ id: block.id, dx: event.clientX - rect.left + (blocksCanvasRef.current?.scrollLeft ?? 0) - block.x, dy: event.clientY - rect.top + (blocksCanvasRef.current?.scrollTop ?? 0) - block.y });
+
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 
   };
 
   const moveBlockDrag = (event: ReactPointerEvent) => {
-
-    // Check if we have a pending drag that hasn't been activated yet
-    const pending = pendingDragRef.current;
-    if (pending && !dragging) {
-      const movedX = Math.abs(event.clientX - pending.startX);
-      const movedY = Math.abs(event.clientY - pending.startY);
-      // Only activate drag after 5px of movement — otherwise it's a scroll
-      if (movedX < 5 && movedY < 5) return;
-      // Activate the drag
-      setDragging({ id: pending.id, dx: pending.dx, dy: pending.dy });
-      try { pending.target.setPointerCapture(pending.pointerId); } catch { /* ignore */ }
-      pendingDragRef.current = null;
-    }
 
     if (!dragging || !blocksCanvasRef.current) return;
 
@@ -1184,13 +1110,9 @@ export const NotesView = () => {
 
                 <>
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="+ Col" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="Add Column" />
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetColumn(s) : s))} icon={TableColumnsSplit} label="− Col" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="+ Row" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetRow(s) : s))} icon={TableRowsSplit} label="− Row" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="Add Row" />
 
                 </>
 
@@ -1204,25 +1126,23 @@ export const NotesView = () => {
 
                 ref={blocksCanvasRef}
 
-                className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-line/70 bg-surface/35"
+                className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-line/70 bg-surface/35 p-6"
 
-                style={{ }}
+                style={{ minHeight: canvasHeight }}
 
                 onPointerMove={moveBlockDrag}
 
-                onPointerUp={() => { setDragging(null); pendingDragRef.current = null; }}
+                onPointerUp={() => setDragging(null)}
 
-                onPointerCancel={() => { setDragging(null); pendingDragRef.current = null; }}
+                onPointerCancel={() => setDragging(null)}
 
-                onClick={(event) => {
+                onPointerDown={(event) => {
 
                   const target = event.target as HTMLElement;
 
-                  const isOnBlock = target.closest('[data-block-id]');
+                  const isOnBlock = target.closest('[data-block-id]') || target.closest('textarea') || target.closest('figure') || target.closest('[data-sheet-header]');
 
-                  const isOnSheet = target.closest('[data-sheet-id]');
-
-                  if (!isOnBlock && !isOnSheet) {
+                  if (event.currentTarget === event.target && !isOnBlock) {
 
                     setSelectedBlockId(null);
 
@@ -1233,8 +1153,6 @@ export const NotesView = () => {
                 }}
 
               >
-                {/* Inner content sizer — this grows to fit all blocks, enabling infinite scroll */}
-                <div className="relative p-6" style={{ minHeight: canvasHeight }}>
 
                 {/* Unified editor and content area with text wrapping support */}
 
@@ -1251,16 +1169,13 @@ export const NotesView = () => {
 
                 {/* Floating spreadsheet grids */}
 
-                {sheets.map((sheet, sheetIndex) => {
-                  const isSheetSelected = selectedSheetIndex === sheetIndex;
-                  return (
+                {sheets.map((sheet, sheetIndex) => (
+
                   <div
 
                     key={sheetIndex}
 
-                    data-sheet-id={sheetIndex}
-
-                    className={cn('absolute rounded-xl border border-[#b7c2d0] bg-white text-slate-900 shadow-soft', isSheetSelected && 'ring-2 ring-accent ring-offset-2 ring-offset-surface')}
+                    className={cn('absolute rounded-xl border border-[#b7c2d0] bg-white text-slate-900 shadow-soft', selectedSheetIndex === sheetIndex && 'ring-2 ring-accent ring-offset-2 ring-offset-surface')}
 
                     style={{
 
@@ -1274,31 +1189,27 @@ export const NotesView = () => {
 
                       height: sheet.height,
 
-                      zIndex: isSheetSelected ? 15 : 10,
+                      zIndex: 10,
 
-                      cursor: 'default'
+                      cursor: 'move'
 
                     }}
 
                     onPointerDown={(event) => {
 
-                      const target = event.target as HTMLElement;
-                      const isHeaderClick = target.closest('[data-sheet-header]');
-                      const isResizeHandle = target.closest('[aria-label*="Resize"]');
-                      const isInput = target.closest('input');
+                      const isHeaderClick = (event.target as HTMLElement).closest('[data-sheet-header]');
 
-                      // Let resize handles and inputs work without interference
-                      if (isResizeHandle || isInput) return;
 
-                      // Click anywhere on grid to select it
-                      if (!isSheetSelected) {
-                        setSelectedSheetIndex(sheetIndex);
-                        setSelectedBlockId(null);
-                        return;
-                      }
-
-                      // Already selected — header click starts drag
                       if (!isHeaderClick) return;
+
+
+                      const newSelected = selectedSheetIndex === sheetIndex ? null : sheetIndex;
+
+                      setSelectedSheetIndex(newSelected);
+
+
+                      if (selectedSheetIndex !== sheetIndex) return;
+
 
                       const startX = event.clientX;
 
@@ -1342,13 +1253,13 @@ export const NotesView = () => {
 
                   >
 
-                    <div className={cn("flex h-9 items-center justify-between border-b border-[#b7c2d0] bg-[#eef3f8] px-3 text-xs font-bold text-slate-600", isSheetSelected && "cursor-grab active:cursor-grabbing")} data-sheet-header>
+                    <div className="flex h-9 items-center justify-between border-b border-[#b7c2d0] bg-[#eef3f8] px-3 text-xs font-bold text-slate-600" data-sheet-header>
 
                       <span>Grid</span>
 
                       <div className="flex items-center gap-2">
 
-                        {isSheetSelected && <span className="rounded bg-white px-2 py-1 text-[10px] uppercase tracking-[0.16em]">drag</span>}
+                        <span className="rounded bg-white px-2 py-1 text-[10px] uppercase tracking-[0.16em]">drag</span>
 
                         <button
 
@@ -1376,7 +1287,7 @@ export const NotesView = () => {
 
                     </div>
 
-                    <div style={{ width: '100%', height: sheet.height - 36, overflow: isSheetSelected ? 'auto' : 'hidden' }}>
+                    <div style={{ width: '100%', height: sheet.height - 36, overflow: 'auto' }}>
 
                       <div className="grid" style={{ gridTemplateColumns: `46px ${sheet.columnWidths.map((width) => `${width}px`).join(' ')}` }}>
 
@@ -1468,7 +1379,7 @@ export const NotesView = () => {
 
                                 aria-label="Resize row"
 
-                                className="absolute bottom-0 left-0 z-30 h-3 w-full cursor-row-resize"
+                                className="absolute bottom-[-4px] left-0 z-30 h-2 w-full cursor-row-resize"
 
                                 onPointerDown={(event) => {
 
@@ -1550,7 +1461,7 @@ export const NotesView = () => {
 
                     </div>
 
-                    {isSheetSelected && (['nw', 'ne', 'sw', 'se'] as const).map((corner) => (
+                    {(['nw', 'ne', 'sw', 'se'] as const).map((corner) => (
 
                       <button
 
@@ -1588,9 +1499,9 @@ export const NotesView = () => {
 
                             const growsTop = corner.includes('n');
 
-                            const nextWidth = Math.max(100, startWidth + (growsLeft ? -dx : dx));
+                            const nextWidth = Math.max(360, startWidth + (growsLeft ? -dx : dx));
 
-                            const nextHeight = Math.max(70, startHeight + (growsTop ? -dy : dy));
+                            const nextHeight = Math.max(220, startHeight + (growsTop ? -dy : dy));
 
                             const nextSheets = [...sheets];
 
@@ -1645,8 +1556,8 @@ export const NotesView = () => {
                     ))}
 
                   </div>
-                  );
-                })}
+
+                ))}
 
 
                 {/* Floating blocks (images and text) */}
@@ -1663,7 +1574,7 @@ export const NotesView = () => {
 
                     onPointerDown={(event) => startBlockDrag(event, block)}
 
-                    onSelect={() => { setSelectedBlockId(block.id); setSelectedSheetIndex(null); }}
+                    onSelect={() => setSelectedBlockId(block.id)}
 
                     onChange={(patch) => updateBlock(block.id, patch)}
 
@@ -1674,8 +1585,6 @@ export const NotesView = () => {
                   />
 
                 ))}
-
-                </div>{/* end inner content sizer */}
 
               </div>
 
@@ -1724,19 +1633,14 @@ const NoteFreeBlock = ({
 
   const isImage = block.type === 'image' && block.image;
   const imageSrc = block.image?.dataUrl ?? block.image?.fileUrl;
-  // Always use the stored original aspect ratio — never derive from current (potentially cropped) block size
+  const aspectRatio: number = (block as any).aspectRatio || (block.width && block.height ? block.width / block.height : 1);
   const crop: CropData | null = (block as any).crop ?? null;
-  const storedAR = (block as any).aspectRatio;
-  const aspectRatio: number = storedAR || (
-    // Fallback: compute from full uncropped size
-    ((block.width + (crop?.left ?? 0) + (crop?.right ?? 0)) / (block.height + (crop?.top ?? 0) + (crop?.bottom ?? 0))) || 1
-  );
 
   const [gesture, setGesture] = useState<
 
-    | { type: 'resize'; corner: 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; startWidth: number; startHeight: number; startLeft: number; startTop: number; startCropForResize: CropData; startFullW: number; startFullH: number }
+    | { type: 'resize'; corner: 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; startWidth: number; startHeight: number; startLeft: number; startTop: number }
 
-    | { type: 'crop'; edge: 'n' | 's' | 'e' | 'w'; startX: number; startY: number; startCrop: CropData; startWidth: number; startHeight: number; startBlockX: number; startBlockY: number; fullW: number; fullH: number }
+    | { type: 'crop'; edge: 'n' | 's' | 'e' | 'w'; startX: number; startY: number; startCrop: CropData }
 
     | { type: 'rotate'; centerX: number; centerY: number; startAngle: number; startRotation: number }
 
@@ -1764,57 +1668,14 @@ const NoteFreeBlock = ({
       if (gesture.type === 'crop') {
         const dx = event.clientX - gesture.startX;
         const dy = event.clientY - gesture.startY;
-        const { fullW, fullH } = gesture;
-        const minSize = 30;
-
-        // Compute new block dimensions and position by moving one edge
-        let newW = gesture.startWidth;
-        let newH = gesture.startHeight;
-        let newX = gesture.startBlockX;
-        let newY = gesture.startBlockY;
-
-        if (gesture.edge === 'n') {
-          // Drag top down → shrink from top, move block down
-          const shift = clamp(dy, -(fullH - gesture.startHeight - gesture.startCrop.top), gesture.startHeight - minSize);
-          newH = gesture.startHeight - shift;
-          newY = gesture.startBlockY + shift;
-        }
-        if (gesture.edge === 's') {
-          // Drag bottom up → shrink from bottom
-          const shift = clamp(-dy, -(fullH - gesture.startHeight - gesture.startCrop.bottom), gesture.startHeight - minSize);
-          newH = gesture.startHeight - shift;
-        }
-        if (gesture.edge === 'w') {
-          // Drag left right → shrink from left, move block right
-          const shift = clamp(dx, -(fullW - gesture.startWidth - gesture.startCrop.left), gesture.startWidth - minSize);
-          newW = gesture.startWidth - shift;
-          newX = gesture.startBlockX + shift;
-        }
-        if (gesture.edge === 'e') {
-          // Drag right left → shrink from right
-          const shift = clamp(-dx, -(fullW - gesture.startWidth - gesture.startCrop.right), gesture.startWidth - minSize);
-          newW = gesture.startWidth - shift;
-        }
-
-        // Recompute crop insets from the new geometry
-        // crop.top = how much was removed from top of full image
-        const cropTop = newY - (gesture.startBlockY - gesture.startCrop.top);
-        const cropLeft = newX - (gesture.startBlockX - gesture.startCrop.left);
-        const cropBottom = fullH - cropTop - newH;
-        const cropRight = fullW - cropLeft - newW;
-
-        onChange({
-          width: newW,
-          height: newH,
-          x: newX,
-          y: newY,
-          crop: {
-            top: Math.max(0, cropTop),
-            right: Math.max(0, cropRight),
-            bottom: Math.max(0, cropBottom),
-            left: Math.max(0, cropLeft),
-          },
-        } as any);
+        const next = { ...gesture.startCrop };
+        const maxCropH = block.height - 40; // keep at least 40px visible
+        const maxCropW = block.width - 40;
+        if (gesture.edge === 'n') next.top = clamp(gesture.startCrop.top + dy, 0, maxCropH - next.bottom);
+        if (gesture.edge === 's') next.bottom = clamp(gesture.startCrop.bottom - dy, 0, maxCropH - next.top);
+        if (gesture.edge === 'w') next.left = clamp(gesture.startCrop.left + dx, 0, maxCropW - next.right);
+        if (gesture.edge === 'e') next.right = clamp(gesture.startCrop.right - dx, 0, maxCropW - next.left);
+        onChange({ crop: next } as any);
         return;
       }
 
@@ -1828,36 +1689,18 @@ const NoteFreeBlock = ({
       const growsTop = gesture.corner.includes('n');
 
       if (isImage) {
-        // Smooth diagonal-distance-based scaling
-        // Project the mouse delta onto the corner diagonal for consistent 1:1 feel
-        const dirX = growsLeft ? -1 : 1;
-        const dirY = growsTop ? -1 : 1;
-        const diag = (dx * dirX + dy * dirY) / Math.SQRT2;
-
-        const { startFullW, startFullH, startCropForResize: sc } = gesture;
-        const nextFullW = clamp(startFullW + diag, 40, 1600);
-        const scaleFactor = nextFullW / startFullW;
-        const nextFullH = Math.round(startFullH * scaleFactor);
-
-        // Scale crop insets proportionally
-        const hasCropInsets = sc.top > 0 || sc.right > 0 || sc.bottom > 0 || sc.left > 0;
-        const nextCropTop = hasCropInsets ? Math.round(sc.top * scaleFactor) : 0;
-        const nextCropRight = hasCropInsets ? Math.round(sc.right * scaleFactor) : 0;
-        const nextCropBottom = hasCropInsets ? Math.round(sc.bottom * scaleFactor) : 0;
-        const nextCropLeft = hasCropInsets ? Math.round(sc.left * scaleFactor) : 0;
-
-        const nextWidth = nextFullW - nextCropLeft - nextCropRight;
-        const nextHeight = nextFullH - nextCropTop - nextCropBottom;
-
-        if (nextWidth < 30 || nextHeight < 30) return;
-
+        // Aspect-ratio-locked scaling
+        const primaryDelta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+        const sign = (growsLeft || growsTop) ? -1 : 1;
+        const scaledDelta = primaryDelta * sign;
+        const nextWidth = clamp(gesture.startWidth + scaledDelta, 60, 1200);
+        const nextHeight = Math.round(nextWidth / aspectRatio);
         onChange({
           width: nextWidth,
           height: nextHeight,
           x: growsLeft ? gesture.startLeft + (gesture.startWidth - nextWidth) : gesture.startLeft,
           y: growsTop ? gesture.startTop + (gesture.startHeight - nextHeight) : gesture.startTop,
-          ...(hasCropInsets ? { crop: { top: nextCropTop, right: nextCropRight, bottom: nextCropBottom, left: nextCropLeft } } : {}),
-        } as any);
+        });
       } else {
         const nextWidth = clamp(gesture.startWidth + (growsLeft ? -dx : dx), 90, 760);
         const nextHeight = clamp(gesture.startHeight + (growsTop ? -dy : dy), 70, 560);
@@ -1896,21 +1739,7 @@ const NoteFreeBlock = ({
 
     onSelect();
 
-    const c: CropData = crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
-
-    setGesture({
-      type: 'resize',
-      corner,
-      startX: event.clientX,
-      startY: event.clientY,
-      startWidth: block.width,
-      startHeight: block.height,
-      startLeft: block.x,
-      startTop: block.y,
-      startCropForResize: { ...c },
-      startFullW: block.width + c.left + c.right,
-      startFullH: block.height + c.top + c.bottom,
-    });
+    setGesture({ type: 'resize', corner, startX: event.clientX, startY: event.clientY, startWidth: block.width, startHeight: block.height, startLeft: block.x, startTop: block.y });
 
   };
 
@@ -1918,23 +1747,8 @@ const NoteFreeBlock = ({
     event.preventDefault();
     event.stopPropagation();
     onSelect();
-    const currentCrop: CropData = crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
-    // Freeze the full uncropped size at drag start so it stays stable during the gesture
-    const fullW = block.width + currentCrop.left + currentCrop.right;
-    const fullH = block.height + currentCrop.top + currentCrop.bottom;
-    setGesture({
-      type: 'crop',
-      edge,
-      startX: event.clientX,
-      startY: event.clientY,
-      startCrop: currentCrop,
-      startWidth: block.width,
-      startHeight: block.height,
-      startBlockX: block.x,
-      startBlockY: block.y,
-      fullW,
-      fullH,
-    });
+    const startCrop: CropData = crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    setGesture({ type: 'crop', edge, startX: event.clientX, startY: event.clientY, startCrop });
   };
 
   const startRotate = (event: ReactPointerEvent) => {
@@ -1979,7 +1793,6 @@ const NoteFreeBlock = ({
         height: block.height,
         transform: `rotate(${block.rotation}deg)`,
         zIndex: block.zIndex,
-        touchAction: 'auto',
       }}
       onPointerDown={onPointerDown}
       onDoubleClick={handleDoubleClick}
@@ -1998,44 +1811,32 @@ const NoteFreeBlock = ({
       </div>
 
       {/* Image block */}
-      {isImage && imageSrc ? (() => {
-        const hasCrop = crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0);
-        // Full uncropped area (block + all crop insets)
-        const fullW = block.width + (crop?.left ?? 0) + (crop?.right ?? 0);
-        const fullH = block.height + (crop?.top ?? 0) + (crop?.bottom ?? 0);
-        // Compute image render size from aspect ratio so it never stretches.
-        // The image must cover the full uncropped area while keeping its ratio.
-        let imgW = fullW;
-        let imgH = fullW / aspectRatio;
-        if (imgH < fullH) {
-          imgH = fullH;
-          imgW = fullH * aspectRatio;
-        }
-        return (
-          <figure
-            className="relative h-full w-full overflow-hidden rounded-[3px]"
-            style={{ border: '1px solid rgba(0,0,0,0.06)' }}
+      {isImage && imageSrc ? (
+
+        <figure
+          className="relative h-full w-full rounded-2xl bg-white p-1.5 shadow-soft"
+          style={{
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            className="h-full w-full overflow-hidden rounded-xl"
+            style={crop ? {
+              position: 'relative',
+              clipPath: `inset(${crop.top}px ${crop.right}px ${crop.bottom}px ${crop.left}px)`,
+            } : undefined}
           >
             <img
               src={imageSrc}
               alt={block.image?.originalName ?? 'Image'}
-              className="block select-none"
-              style={hasCrop ? {
-                position: 'absolute',
-                left: -(crop?.left ?? 0),
-                top: -(crop?.top ?? 0),
-                width: imgW,
-                height: imgH,
-                maxWidth: 'none',
-              } : {
-                width: '100%',
-                height: '100%',
-              }}
+              className="h-full w-full rounded-xl select-none"
+              style={{ objectFit: 'contain' }}
               draggable={false}
             />
-          </figure>
-        );
-      })() : (
+          </div>
+        </figure>
+
+      ) : (
 
         <textarea
 
@@ -2149,19 +1950,7 @@ const NoteFreeBlock = ({
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                // Restore full uncropped size
-                const fullW = block.width + (crop?.left ?? 0) + (crop?.right ?? 0);
-                const fullH = block.height + (crop?.top ?? 0) + (crop?.bottom ?? 0);
-                onChange({
-                  width: fullW,
-                  height: fullH,
-                  x: block.x - (crop?.left ?? 0),
-                  y: block.y - (crop?.top ?? 0),
-                  crop: { top: 0, right: 0, bottom: 0, left: 0 },
-                } as any);
-              }}
+              onClick={(e) => { e.stopPropagation(); onChange({ crop: { top: 0, right: 0, bottom: 0, left: 0 } } as any); }}
               className="absolute -top-9 right-0 flex items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-md hover:bg-orange-600 transition"
             >
               <Crop className="h-3 w-3" /> Reset crop
@@ -2230,7 +2019,7 @@ const SpreadsheetGrid = ({ sheet, onChange }: { sheet: SheetData; onChange: (she
 
     if (drag.type === 'resize-sheet') {
 
-      onChange({ ...drag.startSheet, width: Math.max(100, drag.startSheet.width + deltaX), height: Math.max(70, drag.startSheet.height + deltaY) });
+      onChange({ ...drag.startSheet, width: Math.max(360, drag.startSheet.width + deltaX), height: Math.max(220, drag.startSheet.height + deltaY) });
 
     }
 

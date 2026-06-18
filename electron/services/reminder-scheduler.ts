@@ -12,6 +12,11 @@ type ReminderRow = {
   body: string | null;
   remindAt: string;
   recurrenceRule: ReminderRepeat | null;
+  customRecurrencePattern: string | null;
+  mode: 'standard' | 'event' | null;
+  eventKind: 'birthday' | 'anniversary' | 'event' | null;
+  dateOfBirth: string | null;
+  notifyLikeAlarm: 0 | 1;
   snoozedUntil: string | null;
   category: string | null;
   priority: 'low' | 'normal' | 'high' | null;
@@ -27,6 +32,11 @@ const mapReminderRow = (row: ReminderRow): Reminder => ({
   body: row.body,
   remindAt: row.remindAt,
   recurrenceRule: row.recurrenceRule ?? 'none',
+  customRecurrencePattern: row.customRecurrencePattern,
+  mode: row.mode ?? 'standard',
+  eventKind: row.eventKind,
+  dateOfBirth: row.dateOfBirth,
+  notifyLikeAlarm: Boolean(row.notifyLikeAlarm),
   snoozedUntil: row.snoozedUntil,
   category: row.category,
   priority: row.priority ?? 'normal',
@@ -41,7 +51,8 @@ const addRepeatInterval = (date: Date, recurrence: ReminderRepeat): Date | null 
   if (recurrence === 'daily') next.setDate(next.getDate() + 1);
   if (recurrence === 'weekly') next.setDate(next.getDate() + 7);
   if (recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
-  return recurrence === 'none' ? null : next;
+  if (recurrence === 'yearly') next.setFullYear(next.getFullYear() + 1);
+  return recurrence === 'none' || recurrence === 'custom' ? null : next;
 };
 
 export class ReminderScheduler {
@@ -67,6 +78,8 @@ export class ReminderScheduler {
   scheduleAll(): void {
     const reminders = this.db.prepare(
       `SELECT id, title, body, remind_at as remindAt, recurrence_rule as recurrenceRule,
+              custom_recurrence_pattern as customRecurrencePattern, mode, event_kind as eventKind,
+              date_of_birth as dateOfBirth, notify_like_alarm as notifyLikeAlarm,
               snoozed_until as snoozedUntil, category, priority, last_notified_at as lastNotifiedAt,
               is_completed as isCompleted, created_at as createdAt, updated_at as updatedAt
        FROM reminders
@@ -116,12 +129,17 @@ export class ReminderScheduler {
   }
 
   showTestNotification(): void {
-    const reminder = {
+    const reminder: Reminder = {
       id: 'test',
       title: 'Avyukta notification test',
       body: 'Desktop reminders are wired locally on this Mac.',
       remindAt: new Date().toISOString(),
       recurrenceRule: 'none',
+      customRecurrencePattern: null,
+      mode: 'standard',
+      eventKind: null,
+      dateOfBirth: null,
+      notifyLikeAlarm: true,
       snoozedUntil: null,
       category: 'System',
       priority: 'normal',
@@ -129,10 +147,12 @@ export class ReminderScheduler {
       isCompleted: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    } satisfies Reminder;
+    };
     this.showNotification(reminder);
-    this.emitAlarm(reminder);
-    this.playLongAlarm(reminder.id);
+    if (reminder.notifyLikeAlarm || reminder.priority === 'high') {
+      this.emitAlarm(reminder);
+      this.playLongAlarm(reminder.id);
+    }
   }
 
   private fire(reminder: Reminder): void {
@@ -170,11 +190,13 @@ export class ReminderScheduler {
     }
 
     const notification = new Notification({
-      title: reminder.priority === 'high' ? `Important: ${reminder.title}` : reminder.title,
+      title: reminder.priority === 'high' ? `🔔 Important: ${reminder.title}` : `📌 ${reminder.title}`,
       subtitle: reminder.category ?? 'Avyukta Life',
       body: reminder.body ?? 'Reminder due now.',
       silent: false,
-      sound: 'default'
+      sound: 'default',
+      urgency: reminder.priority === 'high' || reminder.notifyLikeAlarm ? 'critical' : 'normal',
+      timeoutType: reminder.notifyLikeAlarm ? 'never' : 'default'
     });
 
     notification.on('click', () => {
@@ -182,6 +204,8 @@ export class ReminderScheduler {
       if (window) {
         if (window.isMinimized()) window.restore();
         window.focus();
+        // Navigate to reminders view
+        window.webContents.send('reminder:navigate', reminder.id);
       }
     });
 
@@ -190,9 +214,7 @@ export class ReminderScheduler {
 
   private playLongAlarm(id: string): void {
     this.stopAlarm(id);
-    if (process.platform !== 'darwin') return;
-
-    const soundPath = '/System/Library/Sounds/Sosumi.aiff';
+    
     const startedAt = Date.now();
     const playOnce = () => {
       if (Date.now() - startedAt > 60_000) {
@@ -200,13 +222,35 @@ export class ReminderScheduler {
         return;
       }
 
-      const player = spawn('afplay', [soundPath]);
-      this.alarmProcesses.set(id, player);
-      player.once('close', () => {
-        if (!this.alarmLoops.has(id)) return;
-        const loop = setTimeout(playOnce, 300);
+      if (process.platform === 'darwin') {
+        const soundPath = '/System/Library/Sounds/Sosumi.aiff';
+        const player = spawn('afplay', [soundPath]);
+        this.alarmProcesses.set(id, player);
+        player.once('close', () => {
+          if (!this.alarmLoops.has(id)) return;
+          const loop = setTimeout(playOnce, 300);
+          this.alarmLoops.set(id, loop);
+        });
+      } else if (process.platform === 'win32') {
+        // Windows system notification sound
+        const script = `
+          Add-Type -AssemblyName 'System.Speech'
+          $speak = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          $speak.Volume = 100
+          $speak.Speak('Reminder')
+        `;
+        const player = spawn('powershell.exe', ['-NoProfile', '-Command', script]);
+        this.alarmProcesses.set(id, player);
+        player.once('close', () => {
+          if (!this.alarmLoops.has(id)) return;
+          const loop = setTimeout(playOnce, 500);
+          this.alarmLoops.set(id, loop);
+        });
+      } else {
+        // Linux or other: use a timer to check periodically
+        const loop = setTimeout(playOnce, 500);
         this.alarmLoops.set(id, loop);
-      });
+      }
     };
 
     const loop = setTimeout(playOnce, 0);

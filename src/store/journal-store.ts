@@ -121,12 +121,16 @@ export const useJournalStore = create<JournalState>((set, get) => ({
     set({ saving: true, error: null });
     try {
       const entry = await getJournalApi().createEntry(activeBook.journal.id);
+      const newEntries = [...activeBook.entries, entry];
+      const newPageIndex = newEntries.length - 1;
       set({
-        activeBook: { ...activeBook, entries: [...activeBook.entries, entry] },
-        selectedPageIndex: activeBook.entries.length,
+        activeBook: { ...activeBook, entries: newEntries },
+        selectedPageIndex: newPageIndex,
         saving: false
       });
-      await get().loadJournals();
+      // Update journals list but preserve the current page selection
+      const journals = await getJournalApi().list();
+      set({ journals });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to create page', saving: false });
     }

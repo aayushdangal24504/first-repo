@@ -81,8 +81,9 @@ export type MoodLog = {
   createdAt: string;
 };
 
-export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
+export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 export type ReminderPriority = 'low' | 'normal' | 'high';
+export type ReminderMode = 'standard' | 'event';
 
 export type Reminder = {
   id: string;
@@ -90,6 +91,11 @@ export type Reminder = {
   body: string | null;
   remindAt: string;
   recurrenceRule: ReminderRepeat;
+  customRecurrencePattern: string | null; // e.g., "RRULE:FREQ=WEEKLY;BYDAY=FR"
+  mode: ReminderMode;
+  eventKind: 'birthday' | 'anniversary' | 'event' | null;
+  dateOfBirth: string | null;
+  notifyLikeAlarm: boolean;
   snoozedUntil: string | null;
   category: string | null;
   priority: ReminderPriority;
@@ -104,6 +110,11 @@ export type CreateReminderInput = {
   body?: string;
   remindAt: string;
   recurrenceRule?: ReminderRepeat;
+  customRecurrencePattern?: string; // e.g., "RRULE:FREQ=WEEKLY;BYDAY=FR"
+  mode?: ReminderMode;
+  eventKind?: 'birthday' | 'anniversary' | 'event';
+  dateOfBirth?: string | null;
+  notifyLikeAlarm?: boolean;
   category?: string;
   priority?: ReminderPriority;
 };
@@ -372,6 +383,12 @@ export type TripDay = {
   dayDate: string;
   title: string | null;
   entry: { text: string };
+  activities?: string | null;
+  plans?: string | null;
+  placesVisited?: string[];
+  foodTried?: string[];
+  highlights?: string | null;
+  notes?: string | null;
   expenses: TripExpense[];
   packing: string[];
   createdAt: string;
@@ -410,6 +427,12 @@ export type CreateTripDayInput = {
   dayDate: string;
   title?: string;
   text?: string;
+  activities?: string;
+  plans?: string;
+  placesVisited?: string[];
+  foodTried?: string[];
+  highlights?: string;
+  notes?: string;
   packing?: string[];
 };
 
@@ -418,6 +441,22 @@ export type UpdateTripDayInput = {
   dayDate?: string;
   title?: string | null;
   text?: string;
+  activities?: string | null;
+  plans?: string | null;
+  placesVisited?: string[];
+  foodTried?: string[];
+  highlights?: string | null;
+  notes?: string | null;
   expenses?: TripExpense[];
   packing?: string[];
+};
+
+export type TrashItem = {
+  id: string;
+  entityType: 'journal' | 'journal_entry' | 'note' | 'task' | 'reminder' | 'trip' | 'trip_day' | 'memory' | 'media';
+  entityId: string;
+  title: string | null;
+  deletedAt: string;
+  createdAt: string;
+  updatedAt: string;
 };

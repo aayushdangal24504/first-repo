@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { CreateNoteInput, Note, UpdateNoteInput } from '../../src/types/ipc';
 import type { AppDatabase } from '../database/client';
 import type { AuthService } from '../services/auth-service';
+import type { TrashService } from './trash';
 
 type NoteRow = {
   id: string;
@@ -53,7 +54,7 @@ const getNote = (db: AppDatabase, userId: string, id: string): Note => {
   return mapNote(row);
 };
 
-export const registerNoteIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthService): void => {
+export const registerNoteIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthService, trashService: TrashService): void => {
   ipcMain.handle('notes:list', async (): Promise<Note[]> => {
     const userId = auth.getCurrentUserId();
     const rows = db.prepare(`${noteSelect} WHERE archived_at IS NULL AND user_id = ? ORDER BY is_pinned DESC, updated_at DESC`).all(userId) as NoteRow[];
@@ -98,7 +99,10 @@ export const registerNoteIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthSer
   });
 
   ipcMain.handle('notes:delete', async (_event, id: string): Promise<{ ok: true }> => {
-    db.prepare(`UPDATE notes SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(id, auth.getCurrentUserId());
+    const userId = auth.getCurrentUserId();
+    const note = getNote(db, userId, id);
+    await trashService.moveToTrash('note', id, note, note.title);
+    db.prepare(`UPDATE notes SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(id, userId);
     return { ok: true };
   });
 };

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { CreateTaskInput, Task, TaskStatus, UpdateTaskInput } from '../../src/types/ipc';
 import type { AppDatabase } from '../database/client';
 import type { AuthService } from '../services/auth-service';
+import type { TrashService } from './trash';
 
 type TaskRow = {
   id: string;
@@ -40,7 +41,7 @@ const getTask = (db: AppDatabase, userId: string, id: string): Task => {
   return mapTask(row);
 };
 
-export const registerTaskIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthService): void => {
+export const registerTaskIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthService, trashService: TrashService): void => {
   ipcMain.handle('tasks:list', async (): Promise<Task[]> => {
     const rows = db.prepare(`${taskSelect} WHERE status != 'archived' AND user_id = ? ORDER BY status ASC, due_at IS NULL, due_at ASC, sort_order ASC, created_at DESC`).all(auth.getCurrentUserId()) as TaskRow[];
     return rows.map(mapTask);
@@ -91,7 +92,10 @@ export const registerTaskIpc = (ipcMain: IpcMain, db: AppDatabase, auth: AuthSer
   });
 
   ipcMain.handle('tasks:delete', async (_event, id: string): Promise<{ ok: true }> => {
-    db.prepare(`UPDATE tasks SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(id, auth.getCurrentUserId());
+    const userId = auth.getCurrentUserId();
+    const task = getTask(db, userId, id);
+    await trashService.moveToTrash('task', id, task, task.title);
+    db.prepare(`UPDATE tasks SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`).run(id, userId);
     return { ok: true };
   });
 };

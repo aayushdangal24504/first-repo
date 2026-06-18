@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { addMinutes, format, formatDistanceToNow } from 'date-fns';
-import { AlarmClock, BellRing, CheckCircle2, Clock3, Plus, Trash2 } from 'lucide-react';
+import { AlarmClock, BellRing, Cake, CheckCircle2, Clock3, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/cn';
@@ -23,7 +23,9 @@ const repeatOptions: Array<{ value: ReminderRepeat; label: string }> = [
   { value: 'none', label: 'Once' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' }
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'yearly', label: 'Yearly (Birthdays, Anniversaries)' },
+  { value: 'custom', label: 'Custom (Advanced)' }
 ];
 
 export const RemindersView = () => {
@@ -34,23 +36,61 @@ export const RemindersView = () => {
   const [recurrenceRule, setRecurrenceRule] = useState<ReminderRepeat>('none');
   const [priority, setPriority] = useState<ReminderPriority>('normal');
   const [category, setCategory] = useState('Personal');
+  const [notifyLikeAlarm, setNotifyLikeAlarm] = useState(false);
+  const [eventsMode, setEventsMode] = useState(false);
+  const [eventKind, setEventKind] = useState<'birthday' | 'anniversary' | 'event'>('birthday');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [permissionStatus, setPermissionStatus] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Listen for notification clicks to navigate to reminder
+  useEffect(() => {
+    const handleReminderNavigation = (reminderId: string) => {
+      // Highlight the reminder by scrolling to it
+      const element = document.getElementById(`reminder-${reminderId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-2', 'ring-accent', 'ring-offset-2');
+        setTimeout(() => element.classList.remove('ring-2', 'ring-accent', 'ring-offset-2'), 3000);
+      }
+    };
+
+    window.addEventListener('reminder:navigate', ((event: CustomEvent) => handleReminderNavigation(event.detail)) as EventListener);
+    
+    return () => {
+      window.removeEventListener('reminder:navigate', ((event: CustomEvent) => handleReminderNavigation(event.detail)) as EventListener);
+    };
+  }, []);
+
   const activeReminders = useMemo(() => reminders.filter((reminder) => !reminder.isCompleted), [reminders]);
   const completedReminders = useMemo(() => reminders.filter((reminder) => reminder.isCompleted).slice(0, 5), [reminders]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    await create({ title, body, remindAt: new Date(remindAt).toISOString(), recurrenceRule, priority, category });
+    await create({
+      title,
+      body,
+      remindAt: new Date(remindAt).toISOString(),
+      recurrenceRule: eventsMode && eventKind === 'birthday' ? 'yearly' : recurrenceRule,
+      priority,
+      category: eventsMode ? 'Events' : category,
+      notifyLikeAlarm,
+      mode: eventsMode ? 'event' : 'standard',
+      eventKind: eventsMode ? eventKind : undefined,
+      dateOfBirth: eventsMode && eventKind === 'birthday' ? dateOfBirth || null : null
+    });
     setTitle('');
     setBody('');
     setRemindAt(toDateTimeLocal(addMinutes(new Date(), 15)));
     setRecurrenceRule('none');
     setPriority('normal');
+    setNotifyLikeAlarm(false);
+    setEventsMode(false);
+    setEventKind('birthday');
+    setDateOfBirth('');
   };
 
   const enableNotifications = async () => {
@@ -125,6 +165,27 @@ export const RemindersView = () => {
                 </select>
               </label>
             </div>
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-line/70 bg-surface/45 px-4 py-3 text-sm font-semibold">
+              <span className="flex items-center gap-2"><AlarmClock className="h-4 w-4 text-accent" />Notify like alarm</span>
+              <input type="checkbox" checked={notifyLikeAlarm} onChange={(event) => setNotifyLikeAlarm(event.target.checked)} />
+            </label>
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-line/70 bg-surface/45 px-4 py-3 text-sm font-semibold">
+              <span className="flex items-center gap-2"><Cake className="h-4 w-4 text-accent" />Events / Birthdays Mode</span>
+              <input type="checkbox" checked={eventsMode} onChange={(event) => setEventsMode(event.target.checked)} />
+            </label>
+            {eventsMode && (
+              <div className="space-y-3 rounded-2xl border border-line/70 bg-surface/35 p-3">
+                <select className="w-full rounded-2xl border border-line/70 bg-surface/60 px-4 py-3 text-sm outline-none transition focus:border-accent" value={eventKind} onChange={(event) => setEventKind(event.target.value as typeof eventKind)}>
+                  <option value="birthday">Birthday</option>
+                  <option value="anniversary">Anniversary</option>
+                  <option value="event">Repeating event</option>
+                </select>
+                {eventKind === 'birthday' && (
+                  <input className="w-full rounded-2xl border border-line/70 bg-surface/60 px-4 py-3 text-sm outline-none transition focus:border-accent" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} aria-label="Date of birth" />
+                )}
+                <p className="text-xs font-semibold text-muted">Birthdays repeat yearly and include the calculated age in the saved reminder title.</p>
+              </div>
+            )}
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-muted">Category</span>
               <input className="mt-2 w-full rounded-2xl border border-line/70 bg-surface/60 px-4 py-3 text-sm outline-none transition focus:border-accent" value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Personal, School, Health..." />
@@ -192,6 +253,8 @@ const ReminderCard = ({ reminder, onComplete, onDelete, onSnooze }: { reminder: 
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="font-semibold">{reminder.title}</h4>
             <span className={cn('rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em]', reminder.priority === 'high' ? 'bg-red-500/15 text-red-500' : 'bg-accent/15 text-accent')}>{reminder.priority}</span>
+            {reminder.notifyLikeAlarm && <span className="rounded-full bg-red-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-red-500">alarm</span>}
+            {reminder.mode === 'event' && <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300">{reminder.eventKind ?? 'event'}</span>}
             {reminder.recurrenceRule !== 'none' && <span className="rounded-full bg-elevated/80 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted">{reminder.recurrenceRule}</span>}
           </div>
           {reminder.body && <p className="mt-2 text-sm leading-6 text-muted">{reminder.body}</p>}

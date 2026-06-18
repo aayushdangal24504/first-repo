@@ -22,6 +22,7 @@ import type { AppDatabase } from '../database/client';
 import type { MediaManager } from '../services/media-manager';
 import type { AuthService } from '../services/auth-service';
 import { mediaRowToFile } from '../services/media-manager';
+import type { TrashService } from './trash';
 
 type JournalRow = {
   id: string;
@@ -211,7 +212,7 @@ const renderBookHtml = (book: JournalBook): string => {
   </style></head><body><section class="cover"><div><h1>${escapeHtml(book.journal.title)}</h1><p>${escapeHtml(book.journal.kind)} journal</p></div></section>${pages}</body></html>`;
 };
 
-export const registerJournalIpc = (ipcMain: IpcMain, db: AppDatabase, mediaManager: MediaManager, mediaRoot: string, auth: AuthService): void => {
+export const registerJournalIpc = (ipcMain: IpcMain, db: AppDatabase, mediaManager: MediaManager, mediaRoot: string, auth: AuthService, trashService: TrashService): void => {
   ipcMain.handle('journals:list', async (): Promise<Journal[]> => {
     const rows = db.prepare(`${journalSelect} WHERE j.user_id = ? GROUP BY j.id ORDER BY j.updated_at DESC`).all(auth.getCurrentUserId()) as JournalRow[];
     return rows.map(mapJournal);
@@ -248,6 +249,8 @@ export const registerJournalIpc = (ipcMain: IpcMain, db: AppDatabase, mediaManag
   ipcMain.handle('journals:get-book', async (_event, journalId: string): Promise<JournalBook> => getBook(db, mediaRoot, auth.getCurrentUserId(), journalId));
 
   ipcMain.handle('journals:delete', async (_event, journalId: string): Promise<{ ok: true }> => {
+    const journal = getJournal(db, auth.getCurrentUserId(), journalId);
+    await trashService.moveToTrash('journal', journalId, journal, journal.title);
     db.prepare('DELETE FROM journals WHERE id = ? AND user_id = ?').run(journalId, auth.getCurrentUserId());
     return { ok: true };
   });
@@ -265,6 +268,7 @@ export const registerJournalIpc = (ipcMain: IpcMain, db: AppDatabase, mediaManag
     if (Number(count.count) <= 1) {
       throw new Error('A journal needs at least one page. Delete the whole journal instead.');
     }
+    await trashService.moveToTrash('journal_entry', entryId, existing, existing.title || `Entry from ${existing.entryDate}`);
     db.prepare('DELETE FROM journal_entries WHERE id = ? AND user_id = ?').run(entryId, auth.getCurrentUserId());
     db.prepare('UPDATE journals SET updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').run(existing.journalId, auth.getCurrentUserId());
     return { ok: true, journalId: existing.journalId };
@@ -302,9 +306,9 @@ export const registerJournalIpc = (ipcMain: IpcMain, db: AppDatabase, mediaManag
     const entry = getEntry(db, mediaRoot, auth.getCurrentUserId(), input.entryId);
     const mediaFiles: MediaFile[] = await mediaManager.importImages(auth.getCurrentUserId());
     const currentMax = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as maxOrder FROM journal_entry_media WHERE entry_id = ?').get(input.entryId) as { maxOrder: number };
-    const insert = db.prepare(`INSERT OR IGNORE INTO journal_entry_media (entry_id, media_id, sort_order, user_id) VALUES (?, ?, ?, ?)`);
+    const insert = db.prepare(`INSERT OR IGNORE INTO journal_entry_media (entry_id, media_id, sort_order) VALUES (?, ?, ?)`);
 
-    mediaFiles.forEach((mediaFile, index) => insert.run(input.entryId, mediaFile.id, Number(currentMax.maxOrder) + index + 1, auth.getCurrentUserId()));
+    mediaFiles.forEach((mediaFile, index) => insert.run(input.entryId, mediaFile.id, Number(currentMax.maxOrder) + index + 1));
 
     const newBlocks: JournalPageBlock[] = mediaFiles.map((mediaFile, index) => ({
       id: randomUUID(),

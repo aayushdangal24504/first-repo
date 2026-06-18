@@ -209,18 +209,6 @@ const addSheetRow = (sheet: SheetData): SheetData => ({
 });
 
 
-const removeSheetRow = (sheet: SheetData): SheetData => {
-  if (sheet.cells.length <= 1) return sheet;
-  const removedHeight = sheet.rowHeights[sheet.rowHeights.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.slice(0, -1),
-    rowHeights: sheet.rowHeights.slice(0, -1),
-    height: sheet.height - removedHeight,
-  };
-};
-
-
 const addSheetColumn = (sheet: SheetData): SheetData => ({
 
   ...sheet,
@@ -232,18 +220,6 @@ const addSheetColumn = (sheet: SheetData): SheetData => ({
   width: sheet.width + 110
 
 });
-
-
-const removeSheetColumn = (sheet: SheetData): SheetData => {
-  if (sheet.columnWidths.length <= 1) return sheet;
-  const removedWidth = sheet.columnWidths[sheet.columnWidths.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.map((row) => row.slice(0, -1)),
-    columnWidths: sheet.columnWidths.slice(0, -1),
-    width: sheet.width - removedWidth,
-  };
-};
 
 
 const columnName = (index: number) => {
@@ -915,57 +891,33 @@ export const NotesView = () => {
 
     const maxZ = Math.max(1, ...blocksRef.current.map((block) => block.zIndex));
 
-    // Load each image to get its real natural dimensions
-    const newBlocks = await Promise.all(images.map((image, index) => {
-      const src = image.dataUrl ?? image.fileUrl ?? '';
-      return new Promise<JournalPageBlock>((resolve) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const naturalW = img.naturalWidth || 400;
-          const naturalH = img.naturalHeight || 300;
-          const maxDim = 420;
-          const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
-          resolve({
-            id: crypto.randomUUID(),
-            type: 'image' as const,
-            mediaId: image.id,
-            image: { ...image, sortOrder: index, caption: null },
-            x: 80 + index * 34,
-            y: 82 + index * 28,
-            width: Math.round(naturalW * scale),
-            height: Math.round(naturalH * scale),
-            rotation: 0,
-            zIndex: maxZ + index + 1,
-            aspectRatio: naturalW / naturalH,
-            crop: null,
-          } as any);
-        };
-        img.onerror = () => {
-          // Fallback if image fails to load
-          const naturalW = image.width ?? 400;
-          const naturalH = image.height ?? 300;
-          const maxDim = 420;
-          const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
-          resolve({
-            id: crypto.randomUUID(),
-            type: 'image' as const,
-            mediaId: image.id,
-            image: { ...image, sortOrder: index, caption: null },
-            x: 80 + index * 34,
-            y: 82 + index * 28,
-            width: Math.round(naturalW * scale),
-            height: Math.round(naturalH * scale),
-            rotation: 0,
-            zIndex: maxZ + index + 1,
-            aspectRatio: naturalW / naturalH,
-            crop: null,
-          } as any);
-        };
-        img.src = src;
-      });
-    }));
+    const nextBlocks: JournalPageBlock[] = [
 
-    const nextBlocks: JournalPageBlock[] = [...blocksRef.current, ...newBlocks];
+      ...blocksRef.current,
+
+      ...images.map((image, index) => {
+        // Determine natural aspect-ratio-aware default size
+        const naturalW = image.width ?? 400;
+        const naturalH = image.height ?? 300;
+        const maxDim = 360;
+        const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
+        return {
+          id: crypto.randomUUID(),
+          type: 'image' as const,
+          mediaId: image.id,
+          image: { ...image, sortOrder: index, caption: null },
+          x: 80 + index * 34,
+          y: 82 + index * 28,
+          width: Math.round(naturalW * scale),
+          height: Math.round(naturalH * scale),
+          rotation: 0,
+          zIndex: maxZ + index + 1,
+          aspectRatio: naturalW / naturalH,
+          crop: null as CropData | null,
+        };
+      })
+
+    ];
 
     setBlocks(nextBlocks);
 
@@ -1184,13 +1136,9 @@ export const NotesView = () => {
 
                 <>
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="+ Col" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="Add Column" />
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetColumn(s) : s))} icon={TableColumnsSplit} label="− Col" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="+ Row" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetRow(s) : s))} icon={TableRowsSplit} label="− Row" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="Add Row" />
 
                 </>
 
@@ -1214,15 +1162,13 @@ export const NotesView = () => {
 
                 onPointerCancel={() => { setDragging(null); pendingDragRef.current = null; }}
 
-                onClick={(event) => {
+                onPointerDown={(event) => {
 
                   const target = event.target as HTMLElement;
 
-                  const isOnBlock = target.closest('[data-block-id]');
+                  const isOnBlock = target.closest('[data-block-id]') || target.closest('textarea') || target.closest('figure') || target.closest('[data-sheet-header]');
 
-                  const isOnSheet = target.closest('[data-sheet-id]');
-
-                  if (!isOnBlock && !isOnSheet) {
+                  if (event.currentTarget === event.target && !isOnBlock) {
 
                     setSelectedBlockId(null);
 
@@ -1258,8 +1204,6 @@ export const NotesView = () => {
 
                     key={sheetIndex}
 
-                    data-sheet-id={sheetIndex}
-
                     className={cn('absolute rounded-xl border border-[#b7c2d0] bg-white text-slate-900 shadow-soft', isSheetSelected && 'ring-2 ring-accent ring-offset-2 ring-offset-surface')}
 
                     style={{
@@ -1282,18 +1226,13 @@ export const NotesView = () => {
 
                     onPointerDown={(event) => {
 
-                      const target = event.target as HTMLElement;
-                      const isHeaderClick = target.closest('[data-sheet-header]');
-                      const isResizeHandle = target.closest('[aria-label*="Resize"]');
-                      const isInput = target.closest('input');
-
-                      // Let resize handles and inputs work without interference
-                      if (isResizeHandle || isInput) return;
+                      const isHeaderClick = (event.target as HTMLElement).closest('[data-sheet-header]');
 
                       // Click anywhere on grid to select it
                       if (!isSheetSelected) {
                         setSelectedSheetIndex(sheetIndex);
                         setSelectedBlockId(null);
+                        // Don't start drag on first click — just select
                         return;
                       }
 
@@ -1376,7 +1315,7 @@ export const NotesView = () => {
 
                     </div>
 
-                    <div style={{ width: '100%', height: sheet.height - 36, overflow: isSheetSelected ? 'auto' : 'hidden' }}>
+                    <div style={{ width: '100%', height: sheet.height - 36, overflow: 'auto' }}>
 
                       <div className="grid" style={{ gridTemplateColumns: `46px ${sheet.columnWidths.map((width) => `${width}px`).join(' ')}` }}>
 
@@ -1468,7 +1407,7 @@ export const NotesView = () => {
 
                                 aria-label="Resize row"
 
-                                className="absolute bottom-0 left-0 z-30 h-3 w-full cursor-row-resize"
+                                className="absolute bottom-[-4px] left-0 z-30 h-2 w-full cursor-row-resize"
 
                                 onPointerDown={(event) => {
 
@@ -1588,9 +1527,9 @@ export const NotesView = () => {
 
                             const growsTop = corner.includes('n');
 
-                            const nextWidth = Math.max(100, startWidth + (growsLeft ? -dx : dx));
+                            const nextWidth = Math.max(360, startWidth + (growsLeft ? -dx : dx));
 
-                            const nextHeight = Math.max(70, startHeight + (growsTop ? -dy : dy));
+                            const nextHeight = Math.max(220, startHeight + (growsTop ? -dy : dy));
 
                             const nextSheets = [...sheets];
 
@@ -1734,7 +1673,7 @@ const NoteFreeBlock = ({
 
   const [gesture, setGesture] = useState<
 
-    | { type: 'resize'; corner: 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; startWidth: number; startHeight: number; startLeft: number; startTop: number; startCropForResize: CropData; startFullW: number; startFullH: number }
+    | { type: 'resize'; corner: 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; startWidth: number; startHeight: number; startLeft: number; startTop: number }
 
     | { type: 'crop'; edge: 'n' | 's' | 'e' | 'w'; startX: number; startY: number; startCrop: CropData; startWidth: number; startHeight: number; startBlockX: number; startBlockY: number; fullW: number; fullH: number }
 
@@ -1828,35 +1767,40 @@ const NoteFreeBlock = ({
       const growsTop = gesture.corner.includes('n');
 
       if (isImage) {
-        // Smooth diagonal-distance-based scaling
-        // Project the mouse delta onto the corner diagonal for consistent 1:1 feel
-        const dirX = growsLeft ? -1 : 1;
-        const dirY = growsTop ? -1 : 1;
-        const diag = (dx * dirX + dy * dirY) / Math.SQRT2;
+        // Aspect-ratio-locked scaling
+        // Compute from the FULL uncropped size so aspect ratio is always the original
+        const startCrop: CropData = (block as any).crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+        const startFullW = gesture.startWidth + startCrop.left + startCrop.right;
+        const startFullH = gesture.startHeight + startCrop.top + startCrop.bottom;
 
-        const { startFullW, startFullH, startCropForResize: sc } = gesture;
-        const nextFullW = clamp(startFullW + diag, 40, 1600);
+        const widthDelta = growsLeft ? -dx : dx;
+        const heightDelta = growsTop ? -dy : dy;
+        // Use whichever axis moved more, converted to a full-width change
+        const effectiveDelta = Math.abs(widthDelta) > Math.abs(heightDelta)
+          ? widthDelta
+          : heightDelta * aspectRatio;
+
+        const nextFullW = clamp(startFullW + effectiveDelta, 60, 1200);
         const scaleFactor = nextFullW / startFullW;
-        const nextFullH = Math.round(startFullH * scaleFactor);
+        const nextFullH = Math.round(nextFullW / aspectRatio);
 
         // Scale crop insets proportionally
-        const hasCropInsets = sc.top > 0 || sc.right > 0 || sc.bottom > 0 || sc.left > 0;
-        const nextCropTop = hasCropInsets ? Math.round(sc.top * scaleFactor) : 0;
-        const nextCropRight = hasCropInsets ? Math.round(sc.right * scaleFactor) : 0;
-        const nextCropBottom = hasCropInsets ? Math.round(sc.bottom * scaleFactor) : 0;
-        const nextCropLeft = hasCropInsets ? Math.round(sc.left * scaleFactor) : 0;
+        const nextCropTop = Math.round(startCrop.top * scaleFactor);
+        const nextCropRight = Math.round(startCrop.right * scaleFactor);
+        const nextCropBottom = Math.round(startCrop.bottom * scaleFactor);
+        const nextCropLeft = Math.round(startCrop.left * scaleFactor);
 
         const nextWidth = nextFullW - nextCropLeft - nextCropRight;
         const nextHeight = nextFullH - nextCropTop - nextCropBottom;
-
-        if (nextWidth < 30 || nextHeight < 30) return;
 
         onChange({
           width: nextWidth,
           height: nextHeight,
           x: growsLeft ? gesture.startLeft + (gesture.startWidth - nextWidth) : gesture.startLeft,
           y: growsTop ? gesture.startTop + (gesture.startHeight - nextHeight) : gesture.startTop,
-          ...(hasCropInsets ? { crop: { top: nextCropTop, right: nextCropRight, bottom: nextCropBottom, left: nextCropLeft } } : {}),
+          crop: (startCrop.top > 0 || startCrop.right > 0 || startCrop.bottom > 0 || startCrop.left > 0)
+            ? { top: nextCropTop, right: nextCropRight, bottom: nextCropBottom, left: nextCropLeft }
+            : startCrop,
         } as any);
       } else {
         const nextWidth = clamp(gesture.startWidth + (growsLeft ? -dx : dx), 90, 760);
@@ -1896,21 +1840,7 @@ const NoteFreeBlock = ({
 
     onSelect();
 
-    const c: CropData = crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
-
-    setGesture({
-      type: 'resize',
-      corner,
-      startX: event.clientX,
-      startY: event.clientY,
-      startWidth: block.width,
-      startHeight: block.height,
-      startLeft: block.x,
-      startTop: block.y,
-      startCropForResize: { ...c },
-      startFullW: block.width + c.left + c.right,
-      startFullH: block.height + c.top + c.bottom,
-    });
+    setGesture({ type: 'resize', corner, startX: event.clientX, startY: event.clientY, startWidth: block.width, startHeight: block.height, startLeft: block.x, startTop: block.y });
 
   };
 
@@ -2000,17 +1930,9 @@ const NoteFreeBlock = ({
       {/* Image block */}
       {isImage && imageSrc ? (() => {
         const hasCrop = crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0);
-        // Full uncropped area (block + all crop insets)
+        // Full uncropped block dimensions
         const fullW = block.width + (crop?.left ?? 0) + (crop?.right ?? 0);
         const fullH = block.height + (crop?.top ?? 0) + (crop?.bottom ?? 0);
-        // Compute image render size from aspect ratio so it never stretches.
-        // The image must cover the full uncropped area while keeping its ratio.
-        let imgW = fullW;
-        let imgH = fullW / aspectRatio;
-        if (imgH < fullH) {
-          imgH = fullH;
-          imgW = fullH * aspectRatio;
-        }
         return (
           <figure
             className="relative h-full w-full overflow-hidden rounded-[3px]"
@@ -2021,13 +1943,15 @@ const NoteFreeBlock = ({
               alt={block.image?.originalName ?? 'Image'}
               className="block select-none"
               style={hasCrop ? {
+                // Render at full uncropped size, offset to hide cropped edges
                 position: 'absolute',
                 left: -(crop?.left ?? 0),
                 top: -(crop?.top ?? 0),
-                width: imgW,
-                height: imgH,
+                width: fullW,
+                height: fullH,
                 maxWidth: 'none',
               } : {
+                // No crop — image fills block exactly (block is already aspect-ratio matched)
                 width: '100%',
                 height: '100%',
               }}
@@ -2230,7 +2154,7 @@ const SpreadsheetGrid = ({ sheet, onChange }: { sheet: SheetData; onChange: (she
 
     if (drag.type === 'resize-sheet') {
 
-      onChange({ ...drag.startSheet, width: Math.max(100, drag.startSheet.width + deltaX), height: Math.max(70, drag.startSheet.height + deltaY) });
+      onChange({ ...drag.startSheet, width: Math.max(360, drag.startSheet.width + deltaX), height: Math.max(220, drag.startSheet.height + deltaY) });
 
     }
 

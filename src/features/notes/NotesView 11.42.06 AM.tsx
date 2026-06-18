@@ -209,18 +209,6 @@ const addSheetRow = (sheet: SheetData): SheetData => ({
 });
 
 
-const removeSheetRow = (sheet: SheetData): SheetData => {
-  if (sheet.cells.length <= 1) return sheet;
-  const removedHeight = sheet.rowHeights[sheet.rowHeights.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.slice(0, -1),
-    rowHeights: sheet.rowHeights.slice(0, -1),
-    height: sheet.height - removedHeight,
-  };
-};
-
-
 const addSheetColumn = (sheet: SheetData): SheetData => ({
 
   ...sheet,
@@ -232,18 +220,6 @@ const addSheetColumn = (sheet: SheetData): SheetData => ({
   width: sheet.width + 110
 
 });
-
-
-const removeSheetColumn = (sheet: SheetData): SheetData => {
-  if (sheet.columnWidths.length <= 1) return sheet;
-  const removedWidth = sheet.columnWidths[sheet.columnWidths.length - 1];
-  return {
-    ...sheet,
-    cells: sheet.cells.map((row) => row.slice(0, -1)),
-    columnWidths: sheet.columnWidths.slice(0, -1),
-    width: sheet.width - removedWidth,
-  };
-};
 
 
 const columnName = (index: number) => {
@@ -1184,13 +1160,9 @@ export const NotesView = () => {
 
                 <>
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="+ Col" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetColumn(s) : s))} icon={TableColumnsSplit} label="Add Column" />
 
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetColumn(s) : s))} icon={TableColumnsSplit} label="− Col" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="+ Row" />
-
-                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? removeSheetRow(s) : s))} icon={TableRowsSplit} label="− Row" />
+                  <ToolbarButton onClick={() => updateSheets(sheets.map((s, i) => i === 0 ? addSheetRow(s) : s))} icon={TableRowsSplit} label="Add Row" />
 
                 </>
 
@@ -1588,9 +1560,9 @@ export const NotesView = () => {
 
                             const growsTop = corner.includes('n');
 
-                            const nextWidth = Math.max(100, startWidth + (growsLeft ? -dx : dx));
+                            const nextWidth = Math.max(360, startWidth + (growsLeft ? -dx : dx));
 
-                            const nextHeight = Math.max(70, startHeight + (growsTop ? -dy : dy));
+                            const nextHeight = Math.max(220, startHeight + (growsTop ? -dy : dy));
 
                             const nextSheets = [...sheets];
 
@@ -2230,7 +2202,7 @@ const SpreadsheetGrid = ({ sheet, onChange }: { sheet: SheetData; onChange: (she
 
     if (drag.type === 'resize-sheet') {
 
-      onChange({ ...drag.startSheet, width: Math.max(100, drag.startSheet.width + deltaX), height: Math.max(70, drag.startSheet.height + deltaY) });
+      onChange({ ...drag.startSheet, width: Math.max(360, drag.startSheet.width + deltaX), height: Math.max(220, drag.startSheet.height + deltaY) });
 
     }
 

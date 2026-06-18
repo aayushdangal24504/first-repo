@@ -1,4 +1,4 @@
-import { ChevronLeft, Command, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Command, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { primaryNavItems, systemNavItems } from '@/lib/navigation';
 import { useUiStore } from '@/store/ui-store';
 import { cn } from '@/lib/cn';
@@ -13,7 +13,7 @@ export const Sidebar = () => {
   const openCommand = useUiStore((state) => state.setCommandPaletteOpen);
 
   return (
-    <aside className={cn('glass-panel flex h-full shrink-0 flex-col rounded-[2rem] p-4 transition-all duration-300', collapsed ? 'w-[92px]' : 'w-[304px]')}>
+    <aside className={cn('glass-panel pointer-events-auto flex h-full shrink-0 flex-col rounded-[2rem] p-4 transition-all duration-300', collapsed ? 'w-[92px]' : 'w-[304px]')}>
       <div className="drag-region flex h-14 items-center justify-between pl-2">
         <div className={cn('overflow-hidden transition-opacity', collapsed && 'opacity-0')}>
           <p className="font-display text-2xl font-bold leading-none">Avyukta</p>
@@ -30,18 +30,10 @@ export const Sidebar = () => {
         {!collapsed && <span className="ml-auto rounded-lg bg-surface px-2 py-1 font-mono text-[11px] text-muted">⌘K</span>}
       </Button>
 
-      <nav className="mt-6 flex-1 space-y-7 overflow-hidden">
+      <nav className="mt-6 min-h-0 flex-1 space-y-7 overflow-y-auto pr-1">
         <NavSection title="Create" collapsed={collapsed} items={primaryNavItems} activeView={activeView} onSelect={setActiveView} />
         <NavSection title="Organize" collapsed={collapsed} items={systemNavItems} activeView={activeView} onSelect={setActiveView} />
       </nav>
-
-      <div className={cn('rounded-[1.5rem] border border-line/70 bg-surface/45 p-4', collapsed && 'p-3 text-center')}>
-        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-          <ChevronLeft className="h-5 w-5 rotate-45" />
-        </div>
-        {!collapsed && <p className="text-sm font-semibold">Everything stays on this laptop.</p>}
-        {!collapsed && <p className="mt-1 text-xs leading-5 text-muted">SQLite, media, backups, and exports are local-only by design.</p>}
-      </div>
     </aside>
   );
 };

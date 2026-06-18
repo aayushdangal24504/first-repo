@@ -30,6 +30,7 @@ import type {
   Reminder,
   RegisterInput,
   SnoozeReminderInput,
+  TrashItem,
   Trip,
   TripDay,
   Task,
@@ -124,6 +125,14 @@ const api = {
   },
   backups: {
     exportJson: (): Promise<BackupResult> => ipcRenderer.invoke('backups:export-json')
+  },
+  trash: {
+    list: (): Promise<TrashItem[]> => ipcRenderer.invoke('trash:list'),
+    add: (entityType: string, entityId: string, entityData: string, title?: string | null): Promise<TrashItem> => ipcRenderer.invoke('trash:add', entityType, entityId, entityData, title),
+    restore: (trashId: string): Promise<{ ok: true; entityType: string; entityId: string; data: string }> => ipcRenderer.invoke('trash:restore', trashId),
+    delete: (trashId: string): Promise<{ ok: true }> => ipcRenderer.invoke('trash:delete', trashId),
+    empty: (): Promise<{ ok: true }> => ipcRenderer.invoke('trash:empty'),
+    setRetentionDays: (days: number): Promise<{ ok: true; days: number }> => ipcRenderer.invoke('trash:set-retention-days', days)
   }
 };
 
